@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QMessageBox>
+#include <QTimer>
 
 namespace Ui {
 class Widget;
@@ -28,7 +29,9 @@ private slots:
     void commandReadyReadSlot();
     //dataSocket的readyRead槽函数
     void dataReadyReadSlot();
-
+    //尝试重新下载
+    void tryRedownload();
+    //清屏按钮槽函数
     void on_btnClear_clicked();
 
 private:
@@ -58,6 +61,8 @@ private:
     void sendQuit();
     //断开命令连接
     void closeCommandConnection();
+    //启动或重启定时器
+    void resetTimer();
 
 private:
     Ui::Widget *ui;
@@ -74,7 +79,9 @@ private:
     qint64 receivedSize;
     QFile file;
     bool hasCreateFile;
-
+    QTimer *timer;
+    int overtime;
+    int tryRedownloadCount;
 };
 
 #endif // WIDGET_H

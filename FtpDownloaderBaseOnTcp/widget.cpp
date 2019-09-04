@@ -2,14 +2,19 @@
 #include "widget.h"
 #include "ui_widget.h"
 
-Widget::Widget(QWidget *parent): QWidget(parent), ui(new Ui::Widget)
+Widget::Widget(QWidget *parent): QWidget(parent), ui(new Ui::Widget), overtime(5 * 1000)
 {
     ui->setupUi(this);
 
+    //初始化套接字
     this->commandSocket = new QTcpSocket(this);
     this->dataSocket = new QTcpSocket(this);
     connect(this->commandSocket, &QTcpSocket::readyRead, this, &Widget::commandReadyReadSlot);
     connect(this->dataSocket, &QTcpSocket::readyRead, this, &Widget::dataReadyReadSlot);
+
+    //初始化定时器
+    this->timer = new QTimer(this);
+    connect(this->timer, &QTimer::timeout, this, &Widget::tryRedownload);
 }
 
 Widget::~Widget()
@@ -33,13 +38,17 @@ void Widget::on_btnStart_clicked()
     //初始化成员变量
     this->hasCreateFile = false;
     this->receivedSize = 0;
+    this->tryRedownloadCount = 0;
 
     ui->progressBar->setValue(0);
+
+    this->resetTimer();//启动定时器
 }
 
 //commandSocket的readyRead槽函数
 void Widget::commandReadyReadSlot()
 {
+    this->resetTimer();//重启定时器
     this->commandBuffer.clear();
     this->commandBuffer = commandSocket->readAll();
     ui->textEdit->append("↓ 收到服务器回复：" + this->commandBuffer);
@@ -48,20 +57,15 @@ void Widget::commandReadyReadSlot()
         if(nextAction) (this->*nextAction)();
     }
     else{
-        ui->textEdit->append( QString("错误：收到不符合期待(%1)的回应:(%2)").arg(this->expectedReply).arg(QString("").append(this->commandBuffer.mid(0,3))) );
-        //关闭连接
-        if(commandSocket->state() == QAbstractSocket::ConnectedState){
-            commandSocket->disconnectFromHost();
-            commandSocket->close();
-        }
-
-        QMessageBox::information(this ,"提示", "下载失败！");
+        ui->textEdit->append( QString("错误：收到不符合期待(%1)的回应:(%2)\r\n").arg(this->expectedReply).arg(QString("").append(this->commandBuffer.mid(0,3))) );
+        this->tryRedownload();
     }
 }
 
 //dataSocket的readyRead槽函数
 void Widget::dataReadyReadSlot()
 {
+    this->resetTimer();//重启定时器
     this->dataBuffer.clear();
     this->dataBuffer = dataSocket->readAll();
 
@@ -76,6 +80,39 @@ void Widget::dataReadyReadSlot()
         dataSocket->disconnectFromHost();
         dataSocket->close();
         file.close();
+    }
+}
+
+//尝试重新下载
+void Widget::tryRedownload()
+{
+    //关闭连接
+    if(commandSocket->state() == QAbstractSocket::ConnectedState){
+        commandSocket->disconnectFromHost();
+        commandSocket->close();
+    }
+    if(dataSocket->state() == QAbstractSocket::ConnectedState){
+        dataSocket->disconnectFromHost();
+        dataSocket->close();
+    }
+    //删除文件
+    if(file.isOpen()){
+        file.close();
+        file.remove();
+    }
+
+    if(this->tryRedownloadCount++ <3){
+        ui->textEdit->append(QString("\r\n********  警告：第%1次重新下载  ********\r\n").arg(tryRedownloadCount));
+        commandSocket->connectToHost(url.host(), url.port()==-1? 21: static_cast<quint16>(url.port()));
+        this->expectedReply = "220";
+        this->nextAction = &Widget::sendUser;
+        this->hasCreateFile = false; //初始化成员变量
+        this->receivedSize = 0;
+        ui->progressBar->setValue(0);
+    }
+    else{
+        if(this->timer->isActive()) this->timer->stop(); //停止定时器
+        QMessageBox::information(this, "提示", "下载失败！");
     }
 }
 
@@ -190,7 +227,7 @@ void Widget::buildDataConnection()
 //发送RETR
 void Widget::sendRetr()
 {
-    QString command = QString("RETR %1%2\r\n").arg(this->currentDirectory).arg(url.path());
+    QString command = QString("RETR %1%2\r\n").arg(this->currentDirectory == "/"? "": this->currentDirectory).arg(url.path());
     ui->textEdit->append("↑ 向服务器发送：　" + command);
     commandSocket->write(command.toLatin1());
     this->expectedReply = "150";
@@ -220,7 +257,21 @@ void Widget::closeCommandConnection()
     commandSocket->disconnectFromHost();
     commandSocket->close();
 
+    if(this->timer->isActive()) this->timer->stop(); //停止定时器
+
     QMessageBox::information(this ,"提示", "下载完成！");
+}
+
+//启动或重启定时器
+void Widget::resetTimer()
+{
+    if(!this->timer->isActive()){
+        this->timer->start(overtime);
+    }
+    else{
+        this->timer->stop();
+        this->timer->start(overtime);
+    }
 }
 
 

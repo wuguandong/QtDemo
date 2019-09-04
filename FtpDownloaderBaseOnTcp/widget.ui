@@ -36,7 +36,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>ftp://speedtest.tele2.net/1MB.zip</string>
+    <string>ftp://speedtest.tele2.net/50MB.zip</string>
    </property>
   </widget>
   <widget class="QPushButton" name="btnStart">
