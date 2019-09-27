@@ -3,9 +3,12 @@
 
 #include <QWidget>
 #include <QClipboard>
-#include <QTimer>
 #include <QUdpSocket>
+#include <QSystemTrayIcon>
+#include <QCloseEvent>
+#include <QMenu>
 #include <QDebug>
+
 
 namespace Ui {
 class Widget;
@@ -22,23 +25,30 @@ public:
 private slots:
     //开关按钮槽函数
     void on_btnSwitch_clicked();
-    //定时器槽函数
-    void timeoutSlot();
+    //剪切板内容改变槽函数
+    void dataChangedSlot();
     //套接字槽函数
     void readyReadSlot();
+    //系统托盘槽函数
+    void activatedSlot(QSystemTrayIcon::ActivationReason reason);
+
+protected:
+    //重写closeEvent
+    void closeEvent(QCloseEvent *event);
 
 private:
     Ui::Widget *ui;
 
     QClipboard *clipboard; //剪切板
-    QTimer *timer; //定时器
     QUdpSocket *socket; //套接字
     bool enable; //开关状态
     QString peerIp; //对方IP
     quint16 port; //端口号
-    QString lastContent; //上一次的剪切板内容
-    QString currentContent; //当前的剪切板内容
+    bool isShared; //防止死循环
     char buffer[9999];
+    QSystemTrayIcon *trayIcon; //系统托盘图标
+    QMenu *trayIconMenu;
+    QAction *quitAction;
 };
 
 #endif // WIDGET_H

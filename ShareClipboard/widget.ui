@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>251</width>
+    <width>290</width>
     <height>135</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Widget</string>
@@ -46,7 +52,7 @@
    <item row="0" column="1">
     <widget class="QLineEdit" name="lePeerIp">
      <property name="text">
-      <string>192.168.1.20</string>
+      <string>192.168.1.1</string>
      </property>
     </widget>
    </item>
