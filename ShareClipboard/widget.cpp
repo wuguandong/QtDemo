@@ -68,7 +68,7 @@ void Widget::dataChangedSlot()
         if(!isShared){
             //发送剪切板
             socket->writeDatagram(this->clipboard->text().toUtf8(), QHostAddress(this->peerIp), this->port);
-//            qDebug()<<"发送："<<this->clipboard->text();
+            qDebug()<<"发送："<<this->clipboard->text();
         }
         else{
             isShared = false;
@@ -83,8 +83,8 @@ void Widget::readyReadSlot()
     socket->readDatagram(buffer,sizeof(buffer));
     this->isShared = true;
     clipboard->setText(QString(buffer), QClipboard::Clipboard);
-    clipboard->setText(QString(buffer), QClipboard::Selection);
-//    qDebug()<<"接收："<<QString(buffer);
+//    clipboard->setText(QString(buffer), QClipboard::Selection); //[仅在Linux中打开]
+    qDebug()<<"接收："<<QString(buffer);
 }
 
 //系统托盘槽函数

@@ -52,7 +52,7 @@
    <item row="0" column="1">
     <widget class="QLineEdit" name="lePeerIp">
      <property name="text">
-      <string>192.168.1.1</string>
+      <string>192.168.1.41</string>
      </property>
     </widget>
    </item>

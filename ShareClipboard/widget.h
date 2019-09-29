@@ -2,13 +2,13 @@
 #define WIDGET_H
 
 #include <QWidget>
+#include <QtGlobal>
 #include <QClipboard>
 #include <QUdpSocket>
 #include <QSystemTrayIcon>
 #include <QCloseEvent>
 #include <QMenu>
 #include <QDebug>
-
 
 namespace Ui {
 class Widget;
