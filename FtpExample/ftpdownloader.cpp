@@ -1,62 +1,105 @@
 ﻿#pragma execution_character_set("utf-8")
 #include "ftpdownloader.h"
 #include <QNetworkAccessManager>
+#include <QDir>
+#include <QMetaEnum>
 #include <QDebug>
 
-FtpDownloader::FtpDownloader(QString url, QString path, QObject *parent) : QObject(parent), lastFileSize(0)
+FtpDownloader::FtpDownloader(QObject *parent): QObject(parent), _lastFileSize(0)
 {
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    connect(manager, &QNetworkAccessManager::finished, this, &FtpDownloader::finishedSlot);
-    this->reply = manager->get(QNetworkRequest(QUrl(url)));
-    connect(reply, &QNetworkReply::readyRead, this, &FtpDownloader::readyReadSlot);
-    connect(reply, static_cast<void(QNetworkReply::*)(QNetworkReply::NetworkError)>(&QNetworkReply::error), this, &FtpDownloader::errorSlot);
+    this->_manager = new QNetworkAccessManager(this);
+    connect(_manager, &QNetworkAccessManager::finished, this, &FtpDownloader::finishedSlot);
 
-    this->file.setFileName(path);
-    file.open(QIODevice::WriteOnly);
+    this->_timer = new QTimer(this);
+    connect(this->_timer, &QTimer::timeout, this, &FtpDownloader::timeoutSlot);
 
-    this->timer = new QTimer(this);
-    connect(this->timer, &QTimer::timeout, this, &FtpDownloader::timeoutSlot);
-    timer->start(10 * 1000); //10s文件大小不变判断为超时
+    connect(this, &FtpDownloader::finished, [=]{_busy = false;});
+}
+
+bool FtpDownloader::startDownload(QString url, QString path)
+{
+    //检查下载器是否正忙
+    if(_busy){
+        qDebug()<<"FTP下载器忙碌中!";
+        return false;
+    }
+    else{
+        _busy = true;
+    }
+
+    //检查Url正确性
+    QUrl qurl(url);
+    if(!qurl.isValid()) return false;
+    if(qurl.scheme() != "ftp") return false;
+    if(qurl.path().isEmpty() || qurl.path()=="/") return false;
+
+    //如果下载路径的目录不存在 则创建目录
+    QDir dir(path.left(path.lastIndexOf('/'))); //路径去掉最后的文件名
+    if(!dir.exists()){
+        if(!dir.mkpath(dir.path())) return false;
+    }
+
+    //打开文件
+    this->_file.setFileName(path);
+    if(!_file.open(QIODevice::WriteOnly)){
+        qDebug()<<"文件打开失败";
+        return false;
+    }
+
+    this->_reply = _manager->get(QNetworkRequest(qurl));
+    connect(_reply, &QNetworkReply::readyRead, this, &FtpDownloader::readyReadSlot);
+    connect(_reply, &QNetworkReply::downloadProgress, this, &FtpDownloader::downloadProgressSlot);
+    connect(_reply, static_cast<void(QNetworkReply::*)(QNetworkReply::NetworkError)>(&QNetworkReply::error), this, &FtpDownloader::errorSlot);
+
+    _timer->start(10 * 1000); //10s文件大小不变判断为超时
+
+    return true;
 }
 
 void FtpDownloader::finishedSlot(QNetworkReply *)
 {
-    this->timer->stop(); //停止定时器
-    file.close();
-    this->reply->deleteLater();
-    this->deleteLater();
+    if(_timer->isActive()) this->_timer->stop(); //停止定时器
 
-    //通过文件大小判断下载成功失败
-    if(file.size() > 0){
-        emit finished(true);
-    }
-    else{
-        emit finished(false);
-        file.remove();
-    }
+    _file.waitForBytesWritten(5 * 1000); //等待文件写入结束（5秒钟）
+    _file.close();
+
+    this->_reply->deleteLater();
+    this->_reply = nullptr;
+
+    emit finished(true);
 }
 
 void FtpDownloader::readyReadSlot()
 {
-    file.write(reply->readAll());
-
-    qDebug()<<file.size() / 1024;
+    _file.write(_reply->readAll());
 }
 
-void FtpDownloader::errorSlot()
+void FtpDownloader::downloadProgressSlot(qint64 bytesReceived, qint64 bytesTotal)
 {
-    if(file.size() > 0){
-        file.resize(0); //下载一半出错则将文件大小置为0
-    }
+    emit progress(static_cast<int>(100 * bytesReceived / bytesTotal));
+}
+
+void FtpDownloader::errorSlot(QNetworkReply::NetworkError error)
+{
+    //打印错误信息
+    QMetaEnum metaEnum = QMetaEnum::fromType<QNetworkReply::NetworkError>();
+    const char *errStr = metaEnum.valueToKey(error);
+    qDebug()<<"文件下载error: " + QString(errStr);
+
+    _file.close();
+    _reply->deleteLater();
+    _reply = nullptr;
+
+    emit finished(false);
 }
 
 void FtpDownloader::timeoutSlot()
 {
-    qint64 currentFileSize = this->file.size();
-    if(currentFileSize == this->lastFileSize){
-        this->reply->abort(); //中断下载
+    qint64 currentFileSize = this->_file.size();
+    if(currentFileSize == this->_lastFileSize){
+        emit _reply->error(QNetworkReply::TimeoutError); //主动发出超时信号
     }
     else{
-        this->lastFileSize = currentFileSize;
+        this->_lastFileSize = currentFileSize;
     }
 }

@@ -1,28 +1,72 @@
 ﻿#pragma execution_character_set("utf-8")
 #include "ftpuploader.h"
-#include <QFile>
 #include <QNetworkAccessManager>
+#include <QMetaEnum>
 #include <QDebug>
 
-FtpUploader::FtpUploader(QString url, QString path, QObject *parent) : QObject(parent)
+FtpUploader::FtpUploader(QObject *parent) : QObject(parent)
 {
-    QFile file(path);
-    if(!file.open(QIODevice::ReadOnly)) return; //打开文件，如果打开失败则返回
-    QByteArray data = file.readAll();
-    file.close();
+    _manager = new QNetworkAccessManager(this);
+    connect(_manager, &QNetworkAccessManager::finished, this, &FtpUploader::finishedSlot);
 
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    connect(manager, &QNetworkAccessManager::finished, this, &FtpUploader::finishedSlot);
-    this->reply = manager->put(QNetworkRequest(QUrl(url)), data);
-    connect(reply, static_cast<void(QNetworkReply::*)(QNetworkReply::NetworkError)>(&QNetworkReply::error), this, &FtpUploader::errorSlot);
+    connect(this, &FtpUploader::finished, [=]{_busy = false;});
+}
+
+bool FtpUploader::startUpload(QString url, QString path)
+{
+    //检查上传器是否正忙
+    if(_busy){
+        qDebug()<<"FTP上传器忙碌中!";
+        return false;
+    }
+    else{
+        _busy = true;
+    }
+
+    //检查Url正确性
+    QUrl qurl(url);
+    if(!qurl.isValid()) return false;
+    if(qurl.scheme() != "ftp") return false;
+    if(qurl.path().isEmpty() || qurl.path()=="/") return false;
+
+    //打开文件
+    this->_file.setFileName(path);
+    if(!_file.open(QIODevice::ReadOnly)){
+        qDebug()<<"文件打开失败";
+        return false;
+    }
+    QByteArray data = _file.readAll();
+    _file.close();
+
+    this->_reply = _manager->put(QNetworkRequest(QUrl(url)), data);
+    connect(_reply, &QNetworkReply::uploadProgress, this, &FtpUploader::uploadProgressSlot);
+    connect(_reply, static_cast<void(QNetworkReply::*)(QNetworkReply::NetworkError)>(&QNetworkReply::error), this, &FtpUploader::errorSlot);
+
+    return true;
 }
 
 void FtpUploader::finishedSlot()
 {
-    qDebug()<<"结束";
+    this->_reply->deleteLater();
+    this->_reply = nullptr;
+
+    emit finished(true);
 }
 
-void FtpUploader::errorSlot()
+void FtpUploader::uploadProgressSlot(qint64 bytesSent, qint64 bytesTotal)
 {
-    qDebug()<<"错误";
+    emit progress(static_cast<int>(100 * bytesSent / bytesTotal));
+}
+
+void FtpUploader::errorSlot(QNetworkReply::NetworkError error)
+{
+    //打印错误信息
+    QMetaEnum metaEnum = QMetaEnum::fromType<QNetworkReply::NetworkError>();
+    const char *errStr = metaEnum.valueToKey(error);
+    qDebug()<<"文件下载error: " + QString(errStr);
+
+    _reply->deleteLater();
+    _reply = nullptr;
+
+    emit finished(false);
 }

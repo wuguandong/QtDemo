@@ -2,6 +2,8 @@
 #define WIDGET_H
 
 #include <QWidget>
+#include "ftpdownloader.h"
+#include "ftpuploader.h"
 
 namespace Ui {
 class Widget;
@@ -16,10 +18,14 @@ public:
     ~Widget();
 
 private slots:
-    void on_pushButton_clicked();
+    void on_btn_download_clicked();
+
+    void on_btn_upload_clicked();
 
 private:
     Ui::Widget *ui;
+    FtpDownloader *_downloader;
+    FtpUploader *_uploader;
 };
 
 #endif // WIDGET_H

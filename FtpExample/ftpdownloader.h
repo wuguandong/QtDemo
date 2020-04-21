@@ -10,22 +10,27 @@ class FtpDownloader : public QObject
 {
     Q_OBJECT
 public:
-    explicit FtpDownloader(QString url, QString path, QObject *parent = nullptr);
-
-private slots:
-    void finishedSlot(QNetworkReply *);
-    void readyReadSlot();
-    void errorSlot();
-    void timeoutSlot();
+    explicit FtpDownloader(QObject *parent = nullptr);
+    bool startDownload(QString url, QString path);
 
 signals:
     void finished(bool success);
+    void progress(int progress); //0~100
+
+private slots:
+    void finishedSlot(QNetworkReply *reply);
+    void readyReadSlot();
+    void downloadProgressSlot(qint64 bytesReceived, qint64 bytesTotal);
+    void errorSlot(QNetworkReply::NetworkError error);
+    void timeoutSlot();
 
 private:
-    QNetworkReply *reply;
-    QFile file;
-    QTimer *timer;
-    qint64 lastFileSize;
+    QNetworkAccessManager *_manager;
+    QNetworkReply *_reply;
+    QFile _file;
+    QTimer *_timer;
+    qint64 _lastFileSize;
+    bool _busy = false; //下载器是否正忙
 };
 
 #endif // FTPDOWNLOADER_H
