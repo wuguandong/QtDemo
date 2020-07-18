@@ -33,7 +33,7 @@
       <item row="0" column="1">
        <widget class="QLineEdit" name="le_url">
         <property name="text">
-         <string>ftp://192.168.31.90/slam/test_upload.mp4</string>
+         <string>ftp://192.168.1.11/navigation/test.jpg</string>
         </property>
        </widget>
       </item>
@@ -53,7 +53,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="le_path">
         <property name="text">
-         <string>D:/test_upload.mp4</string>
+         <string>D:/test.jpg</string>
         </property>
        </widget>
       </item>
